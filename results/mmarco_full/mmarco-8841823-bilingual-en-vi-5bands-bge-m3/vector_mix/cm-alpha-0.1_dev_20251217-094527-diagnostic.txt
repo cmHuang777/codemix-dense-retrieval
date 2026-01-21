@@ -1,0 +1,5 @@
+num_queries: 1484
+num_retrieved: 579990
+num_relevant: 1579
+num_overlap: 1461
+pct_unjudged: 0.9974809910515698

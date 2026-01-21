@@ -1,0 +1,103 @@
+
+==============
+Input coverage
+==============
+Pairs with full regimes (L1, L2, L1+L2): 35
+Pairs missing regimes (excluded): 0
+
+============================================
+Global picture: delta distribution (nDCG@10)
+============================================
+Groups (pair, doc setting): 105
+Delta>0: 88/105 (83.8%), Delta<0: 17/105 (16.2%), Delta=0: 0/105
+Mean delta: 0.7037 (norm=0.0070)
+Median delta: 0.6508 (norm=0.0065)
+Range: -0.3359 to 2.9203 (norm=-0.0034 to 0.0292)
+Max gain: pair=EN-AR, docs=AR docs, delta=2.9203, lambda*=50 (0.50)
+Most negative: pair=EN-ZH, docs=EN + ZH docs, delta=-0.3359, lambda*=10 (0.10)
+
+=================================
+Finding 1: English in index split
+=================================
+EN present: n=26, mean=-0.0446 (norm=-0.0004), min=-0.3359, max=0.1212
+EN absent: n=79, mean=0.9500 (norm=0.0095), min=0.1070, max=2.9203
+EN absent all delta>0: True
+
+==========================================================
+Finding 2: English as strongest partner (monolingual docs)
+==========================================================
+AR docs: EN 2.9203, best_nonEN=ZH 1.4921, second_nonEN=HI 1.2378, EN_is_best=True
+DE docs: EN 1.7987, best_nonEN=IT 0.9411, second_nonEN=NL 0.8102, EN_is_best=True
+ES docs: EN 1.6579, best_nonEN=PT 0.6965, second_nonEN=NL 0.6508, EN_is_best=True
+FR docs: EN 1.2855, best_nonEN=NL 0.5527, second_nonEN=IT 0.5243, EN_is_best=True
+HI docs: EN 1.9734, best_nonEN=AR 0.7732, second_nonEN=JA 0.4936, EN_is_best=True
+ID docs: EN 1.3232, best_nonEN=ZH 0.4080, second_nonEN=VI 0.3863, EN_is_best=True
+IT docs: EN 1.7154, best_nonEN=DE 1.1379, second_nonEN=NL 1.1229, EN_is_best=True
+JA docs: EN 1.1297, best_nonEN=RU 0.3790, second_nonEN=HI 0.3278, EN_is_best=True
+NL docs: EN 2.0112, best_nonEN=DE 1.1184, second_nonEN=ES 1.1017, EN_is_best=True
+PT docs: EN 1.6938, best_nonEN=ES 1.3153, second_nonEN=IT 1.2026, EN_is_best=True
+RU docs: EN 1.9923, best_nonEN=JA 0.6587, second_nonEN=ZH 0.5146, EN_is_best=True
+VI docs: EN 2.3631, best_nonEN=ID 1.6067, EN_is_best=True
+ZH docs: EN 1.7222, best_nonEN=ID 1.0551, second_nonEN=RU 0.9282, EN_is_best=True
+EN best among partners: 13/13
+
+=====================================================
+Finding 4: Bilingual indexing gains (best_mixed_ndcg)
+=====================================================
+Gain = best_mixed_ndcg(L1+L2 docs) - max(best_mixed_ndcg(L1 docs), best_mixed_ndcg(L2 docs))
+Scale: 0-100 nDCG points (divide by 100 to match 0-1 scale)
+Non-EN pairs (n=22): mean=0.4475, gains>0=21, gains>0.1=19
+EN pairs (n=13): mean=0.0101, gains>0=8, gains>0.1=3
+
+===================================================
+Finding 3: Monolingual endpoint alignment (nDCG@10)
+===================================================
+Monolingual settings: 70
+Match endpoint better: 70, worse: 0, ties: 0, missing: 0
+
+=========================================
+Finding 3: Peak location counts (nDCG@10)
+=========================================
+Non-EN pairs, monolingual index (p_doc): n=44, missing=0, counts={ 0.5: 7, 0.7: 35, 0.9: 2 }
+EN pairs, EN-only index (p_doc): n=13, missing=0, counts={ 0.9: 5, 1.0: 8 }
+EN pairs, non-EN-only index (p_doc): n=13, missing=0, counts={ 0.5: 11, 0.7: 2 }
+Non-EN pairs, bilingual index (lambda): n=22, missing=0, counts={ 0.1: 2, 0.3: 5, 0.5: 7, 0.7: 7, 0.9: 1 }
+EN pairs, bilingual index (lambda): n=13, missing=0, counts={ 0.0: 9, 0.1: 3, 0.3: 1 }
+
+=====================================================================
+Mixing effects across metrics (delta = best interior - best endpoint)
+=====================================================================
+Scale: 0-100 metric points (divide by 100 to match 0-1 scale)
+nDCG@10: mean=0.7037 (norm=0.0070), +=88, -=17, =0 0, n=105
+MRR@10: mean=0.5844 (norm=0.0058), +=88, -=17, =0 0, n=105
+Recall@10: mean=1.2021 (norm=0.0120), +=98, -=7, =0 0, n=105
+
+=============================================
+EN-pair nuance: delta nDCG<0 but delta R@10>0
+=============================================
+Settings with ndcg<0 & r10>0: 11
+Subset check (EN pairs + EN in index): violations=0
+
+======================================================
+Headroom effect (Spearman rho: best endpoint vs delta)
+======================================================
+All settings: n=105, rho=-0.607
+EN pairs: n=39, rho=-0.684
+EN absent in index: n=79, rho=-0.117
+
+==========================================
+Language factor probes (controlled subset)
+==========================================
+Subset: non-EN/non-EN pairs + monolingual docs
+Settings=44
+Stats treat each (pair, doc_lang) setting as one sample
+Scale: 0-100 nDCG points (divide by 100 to match 0-1 scale)
+Typology (lang2vec_knn): rho=-0.405, 95% CI [-0.622, -0.124], n_settings=44, n_pairs=22, n_boot=10000
+Family (glot_tree): rho=-0.306, 95% CI [-0.559, -0.019], n_settings=44, n_pairs=22, n_boot=10000
+Script match: n=28, mean=0.8141 (norm=0.0081)
+Script mismatch: n=16, mean=0.6220 (norm=0.0062)
+Script mean diff (match - mismatch): 0.1920 (norm=0.0019), 95% CI [-0.0182, 0.3953], n_boot=10000
+Resource H-H: n=10, mean=0.5603 (norm=0.0056)
+Resource H-L: n=18, mean=0.7620 (norm=0.0076)
+Resource L-H: n=10, mean=0.7392 (norm=0.0074)
+Resource L-L: n=6, mean=1.0061 (norm=0.0101)
