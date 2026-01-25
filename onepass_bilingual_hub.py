@@ -188,6 +188,9 @@ def main():
     args = ap.parse_args()
     setup_logging(args.verbosity)
     random.seed(args.seed)
+    if args.gpu_faiss and not hasattr(faiss, "StandardGpuResources"):
+        logging.warning("FAISS GPU support not available; falling back to CPU index.")
+        args.gpu_faiss = False
 
     if args.run_out:
         logging.warning("--run_out is deprecated and ignored. Use --outdir for multi-set outputs.")

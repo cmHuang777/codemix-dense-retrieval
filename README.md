@@ -6,6 +6,10 @@ This repository reproduces three core experiment pipelines:
 - `run_ablation.sh` (vector-mix ablations across multiple encoders)
 
 The repo name is arbitrary; all commands assume you are in the repo root.
+Warning: full replication is time-consuming (hours to days) and resource-heavy
+GPU/CPU, disk, and network. Each section below includes a "Subset tip" showing
+how to run a smaller smoke test without changing the default full-replication
+instructions.
 
 ## Path conventions (defaults)
 All scripts use paths relative to the repo root unless you override them:
@@ -29,7 +33,7 @@ Override via environment variables when needed:
 ### Python + CUDA stack
 - Python 3.11.13
 - Torch 2.6.0+cu118
-- FAISS GPU 1.8.0 (CUDA 11.4.4 build from conda-forge)
+- FAISS GPU 1.8.0 (conda-forge; CUDA build varies by platform)
 
 ## Setup
 
@@ -39,10 +43,13 @@ conda create -n <env_name> python=3.11.13 -y
 conda activate <env_name>
 ```
 
-### 2) Install FAISS GPU via conda (exact match)
+### 2) Install FAISS GPU via conda
 ```bash
-conda install -c conda-forge faiss-gpu=1.8.0=*cuda11.4.4* -y
+conda install -c conda-forge faiss-gpu=1.8.0 -y
 ```
+If `faiss.StandardGpuResources` is missing on your build, the scripts will
+fall back to CPU FAISS automatically (slower but functionally correct).
+Subset tip: none; this is the same for full or subset runs.
 
 ### 3) Install Python deps
 ```bash
@@ -68,6 +75,8 @@ python download_mmarco_queries.py \
   --languages english chinese french german italian spanish portuguese dutch russian japanese arabic hindi indonesian vietnamese
 ```
 (choose the languages you want to work with)
+Subset tip: for a minimal run, limit `--languages` to two (e.g., `english chinese`)
+and keep the rest of the pipeline consistent with those choices.
 
 ### B) Generate EN–ZH code-mix bands
 This step is required for the word-mix portions in `reproduce_en_zh.sh`.
@@ -125,6 +134,9 @@ Default output:
 
 This is the most expensive step. Adjust languages and GPU settings in
 `run_encode_index_groups.sh` if you need to split the workload.
+Subset tip: edit `run_encode_index_groups.sh` and set a smaller `SUBSET_CAP`
+(e.g., `100000`) and trim `GROUP1` to just the languages you want
+(e.g., `GROUP1="english,chinese"`), leaving other groups empty.
 
 ### B) Ablation indexes (for `run_ablation.sh`)
 ```bash
@@ -132,6 +144,9 @@ bash run_encode_index_ablation.sh
 ```
 Default output:
 - `indexes/idx-mmarco-<enc_tag>-sub100000`
+Subset tip: in `run_encode_index_ablation.sh`, lower `SUBSET_NEG_CAP`, reduce
+`LANG_CODES`/`LANG_CONFIG_MAP` to your chosen languages, and set `SKIP_*` flags
+to skip models you do not want to test.
 
 ## Run experiments
 
@@ -152,6 +167,8 @@ bash run_all_vector_pairs.sh
 Note: If disk space is limited, you can avoid keeping a full `INDEX_ROOT`.
 `run_all_vector_pairs.sh` can be adjusted to build and use indexes on the fly
 per job (slower, but much smaller disk footprint).
+Subset tip: In `run_all_vector_pairs.sh` edit `BILINGUAL_PAIRS_DEFAULT` and `MONO_JOBS_DEFAULT` to decide the exact language pairs and documents settings to run. For an easy subset, create `failed_pairs.txt` and/or `failed_monolingual_jobs.txt` containing just a few pairs (the script reads
+those files if they exist).
 
 Outputs:
 - Logs: `logs/vector_pairs`
@@ -175,6 +192,9 @@ Outputs:
 - Logs: `logs/ablation`
 - Runs: `runs/` (subdir `ablation2`)
 - Results: `results/mmarco_full/ablation2`
+Subset tip: in `run_ablation.sh`, shrink `COMPOSITION_PAIRS`,
+`HUB_MONO_JOBS`, and `SIZE_BILINGUAL_PAIRS`, and limit `CORE_MODELS` /
+`SIZE_MODELS` to just one encoder.
 
 ## Summarize results (recommended)
 Use these scripts after the runs finish to get compact CSV summaries.

@@ -480,6 +480,9 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
+    if args.gpu_faiss and not hasattr(faiss, "StandardGpuResources"):
+        logging.warning("FAISS GPU support not available; falling back to CPU index.")
+        args.gpu_faiss = False
     doc_lang = args.config.replace("collection-", "")
     index_root = pathlib.Path(args.index_root) if args.index_root else None
 
