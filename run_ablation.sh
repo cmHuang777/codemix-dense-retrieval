@@ -439,7 +439,7 @@ run_bilingual_job() {
             --trust_remote \
             --filter_docids "$docids_path" \
             --qrels_cache "$QRELS_CACHE" \
-            # --filter_qids "$COMMON_QIDS"
+            --filter_qids "$COMMON_QIDS"
     done
 }
 
@@ -500,7 +500,7 @@ run_monolingual_job() {
             --trust_remote \
             --filter_docids "$docids_path" \
             --qrels_cache "$QRELS_CACHE" \
-            # --filter_qids "$COMMON_QIDS"
+            --filter_qids "$COMMON_QIDS"
     done
 }
 
