@@ -2,18 +2,18 @@
 """
 cache_queries_for_mix.py
 
-Pre-encode and cache bilingual query sets in the same layout the one-pass
-scripts use when --cache_queries is supplied. It intersects the qids from the
-two provided query TSV files, encodes them with a SentenceTransformer encoder,
-normalizes the vectors, and saves per-language caches under:
-    ./data/enc-query-<dataset>-<encoder>/<lang>/queries.npz
+Pre-encode and cache query sets in the same layout the one-pass scripts use
+when --cache_queries is supplied. If two query TSVs are provided, it intersects
+their qids (ordered by the first TSV). If a single query TSV is provided, it
+encodes that language's full qid list as-is. Encodings are normalized and saved
+per language under:
+    /home/hcming/data/enc-query-<dataset>-<encoder>/<lang>/queries.npz
 
 Use --cache_root to override the target directory.
 """
 
 import argparse
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -66,11 +66,7 @@ def sanitize_tag(text: str) -> str:
 def default_query_cache_root(repo: str, encoder: str) -> Path:
     dataset_tag = sanitize_tag(repo.split("/")[-1])
     encoder_tag = sanitize_tag(encoder.split("/")[-1])
-    env_root = os.environ.get("QUERY_CACHE_ROOT")
-    if env_root:
-        return Path(env_root)
-    base = os.environ.get("QUERY_CACHE_ROOT_BASE", str(Path(__file__).resolve().parent / "data"))
-    return Path(base) / f"enc-query-{dataset_tag}-{encoder_tag}"
+    return Path(f"/home/hcming/data/enc-query-{dataset_tag}-{encoder_tag}")
 
 
 def read_queries_tsv(path: Path) -> List[Tuple[str, str]]:
@@ -115,8 +111,8 @@ def parse_query_specs(
             raise SystemExit("Provide either --query_tsv twice or both --q_en and --q_zh.")
         specs.append(("en", Path(q_primary)))
         specs.append(("zh", Path(q_secondary)))
-    if len(specs) != 2:
-        raise SystemExit(f"Exactly two query TSV specs required, got {len(specs)}.")
+    if len(specs) not in {1, 2}:
+        raise SystemExit(f"Provide one or two query TSV specs, got {len(specs)}.")
     seen = set()
     for lang, _ in specs:
         if lang in seen:
@@ -198,14 +194,14 @@ def main():
         "--query_tsv",
         action="append",
         metavar="LANG=PATH",
-        help="Language-tagged query TSV (provide twice, e.g. 'id=/path/to/queries.id.tsv').",
+        help="Language-tagged query TSV (provide once or twice, e.g. 'id=/path/to/queries.id.tsv').",
     )
     ap.add_argument("--q_en", help="Legacy alias for --query_tsv en=PATH.")
     ap.add_argument("--q_zh", help="Legacy alias for --query_tsv zh=PATH.")
     ap.add_argument("--max_queries", type=int, help="Optional cap on number of shared qids (after intersection).")
     ap.add_argument(
         "--cache_root",
-        help="Override cache directory; defaults to ./data/enc-query-<dataset>-<encoder> or $QUERY_CACHE_ROOT.",
+        help="Override cache directory; defaults to /home/hcming/data/enc-query-<dataset>-<encoder>.",
     )
     args = ap.parse_args()
 
@@ -217,24 +213,36 @@ def main():
 
     # load query specs
     query_specs = parse_query_specs(args.query_tsv, args.q_en, args.q_zh)
-    (primary_lang, primary_path), (secondary_lang, secondary_path) = query_specs
+    primary_lang, primary_path = query_specs[0]
+    secondary_lang = None
+    secondary_path = None
+    if len(query_specs) == 2:
+        secondary_lang, secondary_path = query_specs[1]
 
     primary_rows = read_queries_tsv(primary_path)
-    secondary_rows = read_queries_tsv(secondary_path)
-    if not primary_rows or not secondary_rows:
-        raise SystemExit("Both query files must be non-empty.")
+    if not primary_rows:
+        raise SystemExit("Primary query file must be non-empty.")
 
-    primary_map = {qid: text for qid, text in primary_rows}
-    secondary_map = {qid: text for qid, text in secondary_rows}
-    common_qids = [qid for qid, _ in primary_rows if qid in secondary_map]
-    if not common_qids:
-        raise SystemExit(
-            f"No overlapping qids between query files for {primary_lang} and {secondary_lang}."
-        )
-    if args.max_queries:
-        common_qids = common_qids[: args.max_queries]
+    if secondary_path:
+        secondary_rows = read_queries_tsv(secondary_path)
+        if not secondary_rows:
+            raise SystemExit("Secondary query file must be non-empty.")
 
-    logging.info("Common qids: %d", len(common_qids))
+        primary_map = {qid: text for qid, text in primary_rows}
+        secondary_map = {qid: text for qid, text in secondary_rows}
+        common_qids = [qid for qid, _ in primary_rows if qid in secondary_map]
+        if not common_qids:
+            raise SystemExit(
+                f"No overlapping qids between query files for {primary_lang} and {secondary_lang}."
+            )
+        if args.max_queries:
+            common_qids = common_qids[: args.max_queries]
+        logging.info("Common qids: %d", len(common_qids))
+    else:
+        common_qids = [qid for qid, _ in primary_rows]
+        if args.max_queries:
+            common_qids = common_qids[: args.max_queries]
+        logging.info("Using %d qids from %s", len(common_qids), primary_lang)
 
     # encoder setup
     if args.dtype == "auto":
@@ -255,6 +263,7 @@ def main():
     )
 
     # encode + normalize
+    primary_map = {qid: text for qid, text in primary_rows}
     logging.info("Encoding %d %s queries…", len(common_qids), primary_lang)
     primary_vecs = encode_queries(
         model,
@@ -263,23 +272,30 @@ def main():
         [primary_map[qid] for qid in common_qids],
         args.enc_batch,
     )
-    logging.info("Encoding %d %s queries…", len(common_qids), secondary_lang)
-    secondary_vecs = encode_queries(
-        model,
-        args.encoder,
-        common_qids,
-        [secondary_map[qid] for qid in common_qids],
-        args.enc_batch,
-    )
-
     torch_normalize_embeddings(primary_vecs, args.device)
-    torch_normalize_embeddings(secondary_vecs, args.device)
+
+    secondary_vecs = None
+    if secondary_lang and secondary_path:
+        secondary_rows = read_queries_tsv(secondary_path)
+        secondary_map = {qid: text for qid, text in secondary_rows}
+        logging.info("Encoding %d %s queries…", len(common_qids), secondary_lang)
+        secondary_vecs = encode_queries(
+            model,
+            args.encoder,
+            common_qids,
+            [secondary_map[qid] for qid in common_qids],
+            args.enc_batch,
+        )
+        torch_normalize_embeddings(secondary_vecs, args.device)
 
     cache_root = Path(args.cache_root) if args.cache_root else default_query_cache_root(args.repo, args.encoder)
     logging.info("Saving caches to %s", cache_root)
     save_query_cache(cache_root, primary_lang, common_qids, primary_vecs)
-    save_query_cache(cache_root, secondary_lang, common_qids, secondary_vecs)
-    logging.info("Done. Cached %d queries for %s and %s.", len(common_qids), primary_lang, secondary_lang)
+    if secondary_lang and secondary_vecs is not None:
+        save_query_cache(cache_root, secondary_lang, common_qids, secondary_vecs)
+        logging.info("Done. Cached %d queries for %s and %s.", len(common_qids), primary_lang, secondary_lang)
+    else:
+        logging.info("Done. Cached %d queries for %s.", len(common_qids), primary_lang)
 
 
 if __name__ == "__main__":

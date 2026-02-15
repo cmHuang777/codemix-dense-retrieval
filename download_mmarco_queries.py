@@ -12,26 +12,36 @@ import argparse, pathlib, tempfile, shutil, sys
 from datasets import load_dataset
 import tqdm
 
+def _sort_key(qid: str):
+    try:
+        return (0, int(qid))
+    except (TypeError, ValueError):
+        return (1, str(qid))
+
+
 def dump(lang: str, split: str, out_path: pathlib.Path) -> int:
     cfg = f"queries-{lang}"
     ds  = load_dataset("unicamp-dl/mmarco", cfg, split=split, streaming=True)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    n = 0
+    rows = []
     # write to a temp file first, then atomically move into place
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", dir=out_path.parent) as tmp:
         tmp_name = tmp.name
         try:
             for rec in tqdm.tqdm(ds, desc=f"{lang}-{split}"):
-                tmp.write(f"{rec['id']}\t{rec['text']}\n")
-                n += 1
+                rows.append((str(rec["id"]), rec["text"]))
         except KeyboardInterrupt:
             print(f"\n[!] Interrupted while writing {lang}-{split}. Partial file kept at: {tmp_name}")
-            return n
+            return len(rows)
+
+        rows.sort(key=lambda x: _sort_key(x[0]))
+        for qid, text in rows:
+            tmp.write(f"{qid}\t{text}\n")
 
     shutil.move(tmp_name, out_path)
-    print(f"[✓] Wrote {n} queries to {out_path}")
-    return n
+    print(f"[✓] Wrote {len(rows)} queries to {out_path}")
+    return len(rows)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

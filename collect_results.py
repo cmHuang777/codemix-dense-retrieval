@@ -22,11 +22,13 @@ Notes:
 import os
 import re
 import math
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Tuple, Any, Union, List
 import pandas as pd
 import argparse
+import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_RESULT_ROOT = SCRIPT_DIR / "results" / "mmarco_full"
@@ -134,7 +136,9 @@ METRIC_EXPORT_MAP = {
     "rr@10": "mrr10",  # RR@10 is equivalent to MRR@10 for our runs.
     "r@10": "r10",
 }
-METRIC_SCALE = 100.0  # Set to 1.0 if metrics are already in 0-100 scale.
+METRIC_SCALE = 1.0  # evaluate.py already outputs metrics in 0-100 scale.
+DELTA_BOOTSTRAP_ITER = 10000
+DELTA_BOOTSTRAP_SEED = 42
 EXPORT_COLUMNS = [
     "pair",
     "doc_mix",
@@ -370,6 +374,15 @@ def compute_full_summary(df: pd.DataFrame) -> pd.DataFrame:
             best_mixed_ndcg = float(midpoints.loc[idx, "ndcg10"])
             lambda_star_mid = float(midpoints.loc[idx, "mix_ratio"])
             delta_ndcg = best_mixed_ndcg - (best_endpoint_ndcg if not math.isnan(best_endpoint_ndcg) else 0.0)
+        perquery_items: List[Tuple[float, pd.Series]] = []
+        if "perquery_ndcg10" in grp.columns:
+            for _, row in grp.iterrows():
+                series = row.get("perquery_ndcg10")
+                if isinstance(series, pd.Series):
+                    ratio = pd.to_numeric(row.get("mix_ratio"), errors="coerce")
+                    if pd.notna(ratio):
+                        perquery_items.append((float(ratio), series))
+        delta_ci = _bootstrap_delta_ndcg_ci(perquery_items)
         row = {
             "pair": pair,
             "doc_mix": doc_mix,
@@ -377,6 +390,10 @@ def compute_full_summary(df: pd.DataFrame) -> pd.DataFrame:
             "best_mixed_ndcg": best_mixed_ndcg,
             "delta_ndcg": delta_ndcg,
             "lambda_star_mid": lambda_star_mid,
+            "delta_ndcg_ci90_low": delta_ci["delta_ndcg_ci90_low"] if delta_ci else float("nan"),
+            "delta_ndcg_ci90_high": delta_ci["delta_ndcg_ci90_high"] if delta_ci else float("nan"),
+            "delta_ndcg_ci95_low": delta_ci["delta_ndcg_ci95_low"] if delta_ci else float("nan"),
+            "delta_ndcg_ci95_high": delta_ci["delta_ndcg_ci95_high"] if delta_ci else float("nan"),
         }
         row.update(pair_factors(str(pair)))
         row.update(PAIR_EXTRA_METRICS.get(normalize_pair(str(pair)), {}))
@@ -426,6 +443,128 @@ def _result_timestamp(path: Path) -> float:
     except OSError:
         return 0.0
 
+def _is_perquery_file(path: Path) -> bool:
+    stem = path.stem.lower()
+    return stem.endswith("-perquery") or stem.endswith("_perquery")
+
+def _base_result_key(path: Path) -> str:
+    key = _canonical_result_key(path)
+    for suffix in ("-agg", "-perquery", "_agg", "_perquery"):
+        if key.endswith(suffix):
+            return key[: -len(suffix)]
+    return key
+
+def _result_id(root_dir: Path, path: Path) -> str:
+    try:
+        rel = path.parent.relative_to(root_dir)
+    except ValueError:
+        rel = path.parent
+    return f"{rel.as_posix()}/{_base_result_key(path)}"
+
+def _find_column(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
+    lower = {str(c).strip().lower(): c for c in df.columns}
+    for name in candidates:
+        col = lower.get(name.lower())
+        if col is not None:
+            return col
+    return None
+
+def _extract_perquery_ndcg10(df: pd.DataFrame) -> Optional[pd.Series]:
+    qid_col = _find_column(df, ["qid", "query_id", "query-id", "query", "topic"])
+    metric_col = _find_column(df, ["ndcg@10"])
+    if not qid_col or not metric_col:
+        return None
+    qids = df[qid_col].astype(str)
+    vals = pd.to_numeric(df[metric_col], errors="coerce")
+    mask = vals.notna()
+    if not mask.any():
+        return None
+    series = pd.Series(vals[mask].values, index=qids[mask].values)
+    if METRIC_SCALE != 1.0:
+        series = series * METRIC_SCALE
+    return series.groupby(level=0).mean()
+
+def _is_endpoint_ratio(ratio: float) -> bool:
+    return math.isclose(ratio, 0.0) or math.isclose(ratio, 100.0)
+
+def _bootstrap_delta_ndcg_ci(
+    items: List[Tuple[float, pd.Series]],
+    iterations: int = DELTA_BOOTSTRAP_ITER,
+    seed: int = DELTA_BOOTSTRAP_SEED,
+) -> Optional[Dict[str, float]]:
+    if iterations < 2 or not items:
+        return None
+    common_qids = None
+    for _, series in items:
+        idx = set(series.index)
+        common_qids = idx if common_qids is None else common_qids & idx
+    if not common_qids or len(common_qids) < 2:
+        return None
+    qids = list(common_qids)
+    ratios: List[float] = []
+    arrays: List[List[float]] = []
+    for ratio, series in items:
+        vals = pd.to_numeric(series.loc[qids], errors="coerce").to_numpy(dtype=float)
+        if vals.size == 0 or (np is not None and np.all(np.isnan(vals))):
+            continue
+        ratios.append(float(ratio))
+        arrays.append(vals)
+    if not arrays:
+        return None
+    mid_idx = [i for i, r in enumerate(ratios) if 0.0 < r < 100.0]
+    end_idx = [i for i, r in enumerate(ratios) if _is_endpoint_ratio(r)]
+    if not mid_idx or not end_idx:
+        return None
+    n = arrays[0].shape[0]
+    if np is None:
+        rng = random.Random(seed)
+        deltas: List[float] = []
+        for _ in range(iterations):
+            sample_idx = [rng.randrange(n) for _ in range(n)]
+            best_mid = float("-inf")
+            best_end = float("-inf")
+            for idx, arr in enumerate(arrays):
+                vals = [arr[i] for i in sample_idx if not math.isnan(arr[i])]
+                mean_val = sum(vals) / len(vals) if vals else float("nan")
+                if math.isnan(mean_val):
+                    continue
+                if idx in end_idx:
+                    if mean_val > best_end:
+                        best_end = mean_val
+                elif idx in mid_idx:
+                    if mean_val > best_mid:
+                        best_mid = mean_val
+            if best_mid == float("-inf") or best_end == float("-inf"):
+                continue
+            deltas.append(best_mid - best_end)
+        if not deltas:
+            return None
+        deltas_series = pd.Series(deltas)
+        return {
+            "delta_ndcg_ci90_low": float(deltas_series.quantile(0.05)),
+            "delta_ndcg_ci90_high": float(deltas_series.quantile(0.95)),
+            "delta_ndcg_ci95_low": float(deltas_series.quantile(0.025)),
+            "delta_ndcg_ci95_high": float(deltas_series.quantile(0.975)),
+        }
+    stack = np.vstack(arrays)  # shape: (ratios, queries)
+    rng = np.random.default_rng(seed)
+    idxs = rng.integers(0, n, size=(iterations, n))
+    means = np.nanmean(stack[:, idxs], axis=2)  # shape: (ratios, iterations)
+    best_mid = np.nanmax(means[mid_idx, :], axis=0)
+    best_end = np.nanmax(means[end_idx, :], axis=0)
+    deltas = best_mid - best_end
+    deltas = deltas[np.isfinite(deltas)]
+    if deltas.size == 0:
+        return None
+    ci90_low, ci90_high = np.quantile(deltas, [0.05, 0.95])
+    ci95_low, ci95_high = np.quantile(deltas, [0.025, 0.975])
+    return {
+        "delta_ndcg_ci90_low": float(ci90_low),
+        "delta_ndcg_ci90_high": float(ci90_high),
+        "delta_ndcg_ci95_low": float(ci95_low),
+        "delta_ndcg_ci95_high": float(ci95_high),
+    }
+
 def select_latest_csv_files(dirpath: Path, filenames: List[str]) -> List[Path]:
     latest: Dict[str, Tuple[Path, float]] = {}
     for fn in filenames:
@@ -473,6 +612,7 @@ def extract_means_from_csv(df: pd.DataFrame) -> Dict[str, float]:
 
 def collect_results(root_dir: Path) -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
+    perquery_map: Dict[str, pd.Series] = {}
     root_info = parse_folder_name(root_dir.name)
     for dirpath, dirnames, filenames in os.walk(root_dir):
         dpath = Path(dirpath)
@@ -486,6 +626,8 @@ def collect_results(root_dir: Path) -> pd.DataFrame:
             continue
         latest_files = select_latest_csv_files(dpath, filenames)
         for fp in latest_files:
+            result_id = _result_id(root_dir, fp)
+            is_perquery = _is_perquery_file(fp)
 
             method, ratio_label = infer_method_and_ratio_from_path(fp)
             if method is None:
@@ -497,6 +639,12 @@ def collect_results(root_dir: Path) -> pd.DataFrame:
             except Exception:
                 continue
 
+            if is_perquery:
+                perquery_series = _extract_perquery_ndcg10(df)
+                if perquery_series is not None:
+                    perquery_map[result_id] = perquery_series
+                continue
+
             pair = pair_from_tokens(folder.get("q1"), folder.get("q2"))
             doc_mix = human_doc_mix(folder.get("doc_lang") or "docs", pair=pair)
 
@@ -505,6 +653,7 @@ def collect_results(root_dir: Path) -> pd.DataFrame:
                 continue
 
             row = {
+                "result_id": result_id,
                 "pair": pair,
                 "doc_mix": doc_mix,
                 "method": method,
@@ -549,13 +698,14 @@ def collect_results(root_dir: Path) -> pd.DataFrame:
         return pd.DataFrame(columns=EXPORT_COLUMNS)
 
     out = pd.DataFrame(rows)
+    out["perquery_ndcg10"] = out["result_id"].map(perquery_map)
     out["mix_ratio_sort"] = pd.to_numeric(out["mix_ratio"], errors="coerce")
     out = out.sort_values(
         ["pair","doc_mix","method","mix_ratio_sort","mix_ratio","model","source_file"],
         kind="mergesort"
     ).reset_index(drop=True)
     out = out.drop(columns=["mix_ratio_sort"])
-    return out[EXPORT_COLUMNS]
+    return out
 
 def main():
     ap = argparse.ArgumentParser()
@@ -588,8 +738,9 @@ def main():
     df = collect_results(root)
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out_path, index=False)
-    print(f"Wrote: {out_path} (rows={len(df)})")
+    export_df = df[EXPORT_COLUMNS] if all(c in df.columns for c in EXPORT_COLUMNS) else df
+    export_df.to_csv(out_path, index=False)
+    print(f"Wrote: {out_path} (rows={len(export_df)})")
 
     if not args.no_processed:
         processed = compute_full_summary(load_summary_dataframe(df))
