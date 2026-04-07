@@ -1,0 +1,44 @@
+{
+  "split": "test",
+  "model_type": "pair_doc_mix_lookup_router",
+  "feature_names": [
+    "pair",
+    "doc_mix"
+  ],
+  "fallback_alpha": 50,
+  "fit_splits": [
+    "train"
+  ],
+  "pair_prior_weight": 50.0,
+  "doc_prior_weight": 0.0,
+  "global_prior_weight": 0.0,
+  "rows": 405132,
+  "contexts": 273,
+  "mean_ndcg10": 29.34830093383789,
+  "always_0_mean_ndcg10": 26.458467483520508,
+  "always_100_mean_ndcg10": 25.12216567993164,
+  "best_endpoint_mean_ndcg10": 33.36510467529297,
+  "oracle_full_mean_ndcg10": 35.31837463378906,
+  "exact_best_alpha_acc": 0.08990896794131295,
+  "seen_context_row_pct": 100.0,
+  "best_fixed_alpha": 50,
+  "best_fixed_alpha_mean_ndcg10": 28.84315299987793,
+  "mean_ndcg10_by_alpha": {
+    "0": 26.458467483520508,
+    "10": 27.27046012878418,
+    "30": 28.531417846679688,
+    "50": 28.84315299987793,
+    "70": 27.91830825805664,
+    "90": 26.11766242980957,
+    "100": 25.12216567993164
+  },
+  "context_count": 273,
+  "seen_context_count": 273,
+  "unseen_context_count": 0,
+  "context_argmax_match_pct": 73.26007326007326,
+  "context_optimal_set_match_pct": 73.26007326007326,
+  "row_weighted_context_optimal_set_match_pct": 73.26007326007326,
+  "context_oracle_mean_ndcg10": 29.39811890291207,
+  "router_from_context_table_mean_ndcg10": 29.348306103940413,
+  "mean_context_oracle_gap": 0.049812798971658225
+}

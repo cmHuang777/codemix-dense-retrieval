@@ -1,0 +1,121 @@
+{
+  "model_type": "pair_doc_mix_lookup_router",
+  "feature_names": [
+    "pair",
+    "doc_mix"
+  ],
+  "fit_splits": [
+    "train"
+  ],
+  "fallback_alpha": 50,
+  "pair_prior_weight": 50.0,
+  "doc_prior_weight": 0.0,
+  "global_prior_weight": 0.0,
+  "selection_metric": "val_mean_ndcg10",
+  "fit_row_count": 1193829,
+  "context_count": 273,
+  "global_mean_by_alpha": {
+    "0": 29.91053581237793,
+    "10": 30.798263549804688,
+    "30": 32.38726806640625,
+    "50": 32.79611587524414,
+    "70": 31.36595916748047,
+    "90": 29.04400634765625,
+    "100": 27.888755798339844
+  },
+  "splits": {
+    "train": {
+      "rows": 1193829,
+      "contexts": 273,
+      "mean_ndcg10": 33.45627975463867,
+      "always_0_mean_ndcg10": 29.91053581237793,
+      "always_100_mean_ndcg10": 27.888755798339844,
+      "best_endpoint_mean_ndcg10": 38.100955963134766,
+      "oracle_full_mean_ndcg10": 40.6027946472168,
+      "exact_best_alpha_acc": 0.09645853803182868,
+      "seen_context_row_pct": 100.0,
+      "best_fixed_alpha": 50,
+      "best_fixed_alpha_mean_ndcg10": 32.79611587524414,
+      "mean_ndcg10_by_alpha": {
+        "0": 29.91053581237793,
+        "10": 30.798263549804688,
+        "30": 32.38726806640625,
+        "50": 32.79611587524414,
+        "70": 31.36595916748047,
+        "90": 29.04400634765625,
+        "100": 27.888755798339844
+      },
+      "context_count": 273,
+      "seen_context_count": 273,
+      "unseen_context_count": 0,
+      "context_argmax_match_pct": 98.9010989010989,
+      "context_optimal_set_match_pct": 98.9010989010989,
+      "row_weighted_context_optimal_set_match_pct": 98.9010989010989,
+      "context_oracle_mean_ndcg10": 33.45630508814103,
+      "router_from_context_table_mean_ndcg10": 33.45627246060214,
+      "mean_context_oracle_gap": 3.26275388836424e-05
+    },
+    "val": {
+      "rows": 306579,
+      "contexts": 273,
+      "mean_ndcg10": 32.969825744628906,
+      "always_0_mean_ndcg10": 29.182531356811523,
+      "always_100_mean_ndcg10": 27.225749969482422,
+      "best_endpoint_mean_ndcg10": 37.549442291259766,
+      "oracle_full_mean_ndcg10": 40.21814727783203,
+      "exact_best_alpha_acc": 0.09727998329957369,
+      "seen_context_row_pct": 100.0,
+      "best_fixed_alpha": 50,
+      "best_fixed_alpha_mean_ndcg10": 32.33634948730469,
+      "mean_ndcg10_by_alpha": {
+        "0": 29.182531356811523,
+        "10": 30.13287353515625,
+        "30": 31.859426498413086,
+        "50": 32.33634948730469,
+        "70": 30.828794479370117,
+        "90": 28.384798049926758,
+        "100": 27.225749969482422
+      },
+      "context_count": 273,
+      "seen_context_count": 273,
+      "unseen_context_count": 0,
+      "context_argmax_match_pct": 79.12087912087912,
+      "context_optimal_set_match_pct": 79.12087912087912,
+      "row_weighted_context_optimal_set_match_pct": 79.12087912087912,
+      "context_oracle_mean_ndcg10": 33.01711106911684,
+      "router_from_context_table_mean_ndcg10": 32.969829203008295,
+      "mean_context_oracle_gap": 0.04728186610854152
+    },
+    "test": {
+      "rows": 405132,
+      "contexts": 273,
+      "mean_ndcg10": 29.34830093383789,
+      "always_0_mean_ndcg10": 26.458467483520508,
+      "always_100_mean_ndcg10": 25.12216567993164,
+      "best_endpoint_mean_ndcg10": 33.36510467529297,
+      "oracle_full_mean_ndcg10": 35.31837463378906,
+      "exact_best_alpha_acc": 0.08990896794131295,
+      "seen_context_row_pct": 100.0,
+      "best_fixed_alpha": 50,
+      "best_fixed_alpha_mean_ndcg10": 28.84315299987793,
+      "mean_ndcg10_by_alpha": {
+        "0": 26.458467483520508,
+        "10": 27.27046012878418,
+        "30": 28.531417846679688,
+        "50": 28.84315299987793,
+        "70": 27.91830825805664,
+        "90": 26.11766242980957,
+        "100": 25.12216567993164
+      },
+      "context_count": 273,
+      "seen_context_count": 273,
+      "unseen_context_count": 0,
+      "context_argmax_match_pct": 73.26007326007326,
+      "context_optimal_set_match_pct": 73.26007326007326,
+      "row_weighted_context_optimal_set_match_pct": 73.26007326007326,
+      "context_oracle_mean_ndcg10": 29.39811890291207,
+      "router_from_context_table_mean_ndcg10": 29.348306103940413,
+      "mean_context_oracle_gap": 0.049812798971658225
+    }
+  }
+}

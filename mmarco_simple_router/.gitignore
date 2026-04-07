@@ -1,0 +1,28 @@
+# Large dataset files
+artifacts/dataset.joblib
+*.joblib
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training outputs (optional - comment out if you want to commit these)
+# artifacts/smoothed_router/
+# artifacts/eval_qids_common/
